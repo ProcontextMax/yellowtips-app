@@ -3,7 +3,7 @@ export async function onRequestGet(context) {
   const env = context.env;
   const url = new URL(request.url);
   const params = url.search;
-  const apiUrl = 'https://api.yellowtips.com/v1/legal/argument' + params;
+  const apiUrl = 'https://api.yellowtips.com/v1/legal/argument/hybrid' + params;
   try {
     const response = await fetch(apiUrl, {
       method: 'GET',
