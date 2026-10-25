@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Yellow Tips - Buscador Jurídico</title>
+    <style>
+        :root {
+            --primary: #F5B700; /* Amarillo YellowTips */
+            --dark: #1E293B;
+            --light: #F8FAFC;
+            --border: #E2E8F0;
+            --text: #334155;
+        }
+        * { box-sizing: border-box; font-family: 'Segoe UI', system-ui, sans-serif; }
+        body { background-color: var(--light); color: var(--text); margin: 0; padding: 0; }
+        
+        header { 
+            background: white; padding: 20px 40px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            display: flex; align-items: center; gap: 10px; position: sticky; top: 0; z-index: 10;
+        }
+        header h1 { margin: 0; font-size: 24px; color: var(--dark); display: flex; align-items: center; gap: 10px; }
+        header h1 span { color: var(--primary); }
+
+        main { max-width: 900px; margin: 40px auto; padding: 0 20px; }
+
+        .search-box { 
+            background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+            display: flex; flex-direction: column; gap: 15px;
+        }
+        
+        .input-group { display: flex; gap: 10px; }
+        input[type="text"] { 
+            flex: 1; padding: 15px; font-size: 16px; border: 2px solid var(--border); 
+            border-radius: 8px; outline: none; transition: border 0.2s;
+        }
+        input[type="text"]:focus { border-color: var(--primary); }
+        
+        button { 
+            background: var(--primary); color: var(--dark); border: none; padding: 0 25px; 
+            font-size: 16px; font-weight: bold; border-radius: 8px; cursor: pointer; transition: opacity 0.2s;
+        }
+        button:hover { opacity: 0.8; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .filters { display: flex; gap: 10px; }
+        select { 
+            padding: 10px; border: 1px solid var(--border); border-radius: 8px; 
+            background: white; color: var(--text); outline: none; flex: 1;
+        }
+
+        .result-card {
+            background: white; padding: 20px; border-radius: 8px; margin-top: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05); border-left: 4px solid var(--primary);
+        }
+        .result-card h3 { margin: 0 0 10px 0; color: #2563EB; font-size: 18px; }
+        .result-card h3 a { color: inherit; text-decoration: none; }
+        .result-card h3 a:hover { text-decoration: underline; }
+        
+        .meta { font-size: 13px; color: #64748B; margin-bottom: 15px; display: flex; gap: 15px; flex-wrap: wrap; }
+        .badge { 
+            background: #E0E7FF; color: #3730A3; padding: 3px 8px; border-radius: 4px; font-weight: 600;
+            text-transform: uppercase; font-size: 11px;
+        }
+        .badge.concede { background: #DCFCE7; color: #166534; }
+        .badge.niega { background: #FEE2E2; color: #991B1B; }
+        .badge.indeterminado { background: #FEF3C7; color: #92400E; }
+
+        .snippet { font-size: 15px; line-height: 1.6; color: var(--text); }
+        .snippet mark { background-color: #FDE047; color: inherit; padding: 0 2px; border-radius: 2px; }
+
+        .loader { text-align: center; margin-top: 30px; display: none; color: #64748B; }
+        .error { color: #DC2626; text-align: center; margin-top: 20px; display: none; background: #FEE2E2; padding: 15px; border-radius: 8px; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>Yellow<span>Tips</span> <small style="font-size: 14px; font-weight: normal; color: #64748B; margin-left: 10px;">Buscador de Argumentos</small></h1>
+    </header>
+
+    <main>
+        <div class="search-box">
+            <div class="input-group">
+                <input type="text" id="query" placeholder="Ej: pensión de vejez, estabilidad laboral, acoso..." autocomplete="off">
+                <button id="searchBtn" onclick="realizarBusqueda()">Buscar</button>
+            </div>
+            <div class="filters">
+                <select id="sentido">
+                    <option value="">Cualquier sentido</option>
+                    <option value="concede">Concede</option>
+                    <option value="niega">Niega</option>
+                    <option value="modula">Modula</option>
+                    <option value="mixto">Mixto</option>
+                    <option value="indeterminado">Indeterminado</option>
+                </select>
+                <select id="derecho">
+                    <option value="">Cualquier derecho</option>
+                    <option value="pension">Pensión</option>
+                    <option value="estabilidad">Estabilidad</option>
+                    <option value="discapacidad">Discapacidad</option>
+                    <option value="trabajo">Trabajo</option>
+                    <option value="salud">Salud</option>
+                    <option value="acoso">Acoso</option>
+                </select>
+            </div>
+        </div>
+
+        <div id="loader" class="loader">⏳ Analizando jurisprudencia...</div>
+        <div id="error" class="error"></div>
+        <div id="results"></div>
+    </main>
+
+    <script>
+        // NOTA: En producción, esta API KEY debería estar protegida detrás de un Worker Proxy.
+        // Para pruebas locales, la usamos directamente.
+        const API_URL = '/api/argument';
+
+        async function realizarBusqueda() {
+            const q = document.getElementById('query').value.trim();
+            const sentido = document.getElementById('sentido').value;
+            const derecho = document.getElementById('derecho').value;
+            
+            if (!q) {
+                alert('Por favor, ingresa un término de búsqueda.');
+                return;
+            }
+
+            // UI Updates
+            const btn = document.getElementById('searchBtn');
+            const loader = document.getElementById('loader');
+            const errorDiv = document.getElementById('error');
+            const resultsDiv = document.getElementById('results');
+
+            btn.disabled = true;
+            loader.style.display = 'block';
+            errorDiv.style.display = 'none';
+            resultsDiv.innerHTML = '';
+
+            // Construir URL
+            const params = new URLSearchParams({ q, limit: 10 });
+            if (sentido) params.append('sentido', sentido);
+            if (derecho) params.append('derecho', derecho);
+
+            try {
+                const response = await fetch(`${API_URL}?${params.toString()}`);
+                
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error?.message || 'Error al buscar');
+                }
+
+                renderResultados(data.data.results);
+            } catch (err) {
+                errorDiv.textContent = `⚠️ Error: ${err.message}`;
+                errorDiv.style.display = 'block';
+            } finally {
+                btn.disabled = false;
+                loader.style.display = 'none';
+            }
+        }
+
+        function renderResultados(results) {
+            const container = document.getElementById('results');
+            
+            if (!results || results.length === 0) {
+                container.innerHTML = '<p style="text-align:center; color:#64748B; margin-top:30px;">No se encontraron resultados para esta búsqueda.</p>';
+                return;
+            }
+
+            let html = `<p style="font-size: 14px; color: #64748B; margin-bottom: 10px;">Se encontraron ${results.length} resultados:</p>`;
+
+            results.forEach(r => {
+                // Formatear fecha
+                const fecha = r.fecha ? r.fecha : 'Fecha no disponible';
+                const ponente = r.ponente ? `Ponente: ${r.ponente}` : '';
+                
+                // Determinar clase del badge
+                let badgeClass = '';
+                if(r.sentido === 'concede') badgeClass = 'concede';
+                if(r.sentido === 'niega') badgeClass = 'niega';
+                if(r.sentido === 'indeterminado') badgeClass = 'indeterminado';
+
+                html += `
+                    <div class="result-card">
+                        <h3><a href="${r.fuente_url}" target="_blank" rel="noopener">${r.titulo || 'Sentencia ' + r.id}</a></h3>
+                        <div class="meta">
+                            <span><strong>ID:</strong> ${r.id}</span>
+                            <span><strong>Fecha:</strong> ${fecha}</span>
+                            <span>${ponente}</span>
+                            <span class="badge ${badgeClass}">${r.sentido}</span>
+                        </div>
+                        <div class="snippet">
+                    
+                        </div>${(r.snippet_problema || r.problema_juridico || 'Sin extracto disponible.')
+    .replace(/\uFFFDn/g, 'ón')
+    .replace(/\uFFFDs/g, 'ás')
+    .replace(/\uFFFD/g, 'e')}
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+        }
+
+        // Permitir buscar con la tecla Enter
+        document.getElementById('query').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') realizarBusqueda();
+        });
+    </script>
+</body>
+</html>
