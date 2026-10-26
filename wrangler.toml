@@ -1,0 +1,11 @@
+name = "yellowtips-app"
+compatibility_date = "2026-01-01"
+pages_build_output_dir = "."
+
+[[ratelimits]]
+name = "API_RATE_LIMITER"
+namespace_id = "1001"
+
+  [ratelimits.simple]
+  limit = 20
+  period = 60

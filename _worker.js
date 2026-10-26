@@ -3,6 +3,27 @@ export default {
     const url = new URL(request.url);
     const path = url.pathname;
 
+    // === RATE LIMITING (solo /api/*) ===
+    if (path.startsWith('/api/')) {
+      const ip = request.headers.get('cf-connecting-ip') || 'unknown';
+      const key = ip + ':' + path;
+      try {
+        const { success } = await env.API_RATE_LIMITER.limit({ key });
+        if (!success) {
+          return new Response(JSON.stringify({
+            error: { code: 'E429', message: 'rate_limit_exceeded', hint: 'Máximo 20 requests por minuto. Esperá y reintentá.' }
+          }), {
+            status: 429,
+            headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+          });
+        }
+      } catch (e) {
+        // Si el binding no está disponible, loggear y seguir (fail-open)
+        console.error('RATE_LIMITER_ERROR:', String(e && e.message || e));
+      }
+    }
+    // === FIN RATE LIMITING ===
+
     // Proxy: /api/argument -> api.yellowtips.com/v1/legal/argument/hybrid
     if (path === '/api/argument') {
       const target = 'https://api.yellowtips.com/v1/legal/argument/hybrid' + url.search;
