@@ -6,10 +6,10 @@ export default {
     // === RATE LIMITING (solo /api/*) ===
     if (path.startsWith('/api/')) {
       const ip = request.headers.get('cf-connecting-ip') || 'unknown';
-      const key = ip + ':' + path;
+      const key = 'rate:' + ip + ':' + path;
       try {
-        const { success } = await env.API_RATE_LIMITER.limit({ key });
-        if (!success) {
+        const current = parseInt(await env.RATE_LIMIT_KV.get(key) || '0', 10);
+        if (current >= 20) {
           return new Response(JSON.stringify({
             error: { code: 'E429', message: 'rate_limit_exceeded', hint: 'Máximo 20 requests por minuto. Esperá y reintentá.' }
           }), {
@@ -17,9 +17,9 @@ export default {
             headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
           });
         }
+        await env.RATE_LIMIT_KV.put(key, String(current + 1), { expirationTtl: 60 });
       } catch (e) {
-        // Si el binding no está disponible, loggear y seguir (fail-open)
-        console.error('RATE_LIMITER_ERROR:', String(e && e.message || e));
+        console.error('RATE_LIMIT_ERROR:', String(e && e.message || e));
       }
     }
     // === FIN RATE LIMITING ===
