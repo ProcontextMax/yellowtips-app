@@ -24,6 +24,39 @@ export default {
     }
     // === FIN RATE LIMITING ===
 
+    // Verify access code
+    if (path === '/api/verify-code' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const code = (body.code || '').trim().toUpperCase();
+        if (!code) {
+          return new Response(JSON.stringify({ valid: false, reason: 'missing' }), {
+            status: 400, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+          });
+        }
+        const row = await env.DB.prepare(
+          'SELECT email, expires_at FROM access_codes WHERE code = ?'
+        ).bind(code).first();
+        if (!row) {
+          return new Response(JSON.stringify({ valid: false, reason: 'invalid' }), {
+            headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+          });
+        }
+        if (new Date(row.expires_at) < new Date()) {
+          return new Response(JSON.stringify({ valid: false, reason: 'expired' }), {
+            headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+          });
+        }
+        return new Response(JSON.stringify({ valid: true, expires_at: row.expires_at }), {
+          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+        });
+      } catch (e) {
+        return new Response(JSON.stringify({ valid: false, reason: 'server_error' }), {
+          status: 500, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+        });
+      }
+    }
+
     // Proxy: /api/argument -> api.yellowtips.com/v1/legal/argument/hybrid
     if (path === '/api/argument') {
       const target = 'https://api.yellowtips.com/v1/legal/argument/hybrid' + url.search;
