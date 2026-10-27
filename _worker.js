@@ -3,6 +3,20 @@ export default {
     const url = new URL(request.url);
     const path = url.pathname;
 
+    // === MANEJO DE CORS PREFLIGHT ===
+    if (request.method === 'OPTIONS') {
+      return new Response(null, {
+        status: 204,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type',
+          'Access-Control-Max-Age': '86400',
+        },
+      });
+    }
+    // === FIN MANEJO DE CORS PREFLIGHT ===
+
     // === RATE LIMITING (solo /api/*) ===
     if (path.startsWith('/api/')) {
       const ip = request.headers.get('cf-connecting-ip') || 'unknown';
